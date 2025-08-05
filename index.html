@@ -244,6 +244,30 @@
             border: 1px solid rgba(78, 205, 196, 0.3);
         }
 
+        .error {
+            display: none;
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 107, 107, 0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+
+        .api-url-input {
+            width: 100%;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .api-url-input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
         @keyframes fadeInUp {
             from {
                 opacity: 0;
@@ -282,6 +306,17 @@
         </div>
 
         <div class="download-card">
+            <div style="margin-bottom: 1rem;">
+                <input 
+                    type="url" 
+                    class="api-url-input" 
+                    placeholder="Enter your backend API URL (e.g., https://your-app.railway.app)" 
+                    id="apiUrl"
+                    value=""
+                >
+                <small style="opacity: 0.7;">Enter your backend URL above after deployment</small>
+            </div>
+
             <div class="platform-selector">
                 <button class="platform-btn active" data-platform="youtube">
                     📺 YouTube
@@ -312,8 +347,13 @@
             </div>
 
             <div class="result" id="result">
-                <p>✅ Video processed successfully! Click below to download:</p>
+                <p>✅ Video processed successfully!</p>
+                <p id="videoTitle" style="margin: 0.5rem 0; font-weight: 600;"></p>
                 <a href="#" id="downloadLink" style="color: #4ecdc4; text-decoration: none; font-weight: 600;">Download Video</a>
+            </div>
+
+            <div class="error" id="error">
+                <p>❌ <span id="errorMessage">Something went wrong</span></p>
             </div>
         </div>
 
@@ -366,12 +406,23 @@
         // Download functionality
         document.getElementById('downloadBtn').addEventListener('click', async () => {
             const url = document.getElementById('videoUrl').value.trim();
+            const apiUrl = document.getElementById('apiUrl').value.trim();
             const downloadBtn = document.getElementById('downloadBtn');
             const loading = document.getElementById('loading');
             const result = document.getElementById('result');
+            const error = document.getElementById('error');
+
+            // Hide previous results
+            result.style.display = 'none';
+            error.style.display = 'none';
 
             if (!url) {
-                alert('Please enter a valid video URL!');
+                showError('Please enter a valid video URL!');
+                return;
+            }
+
+            if (!apiUrl) {
+                showError('Please enter your backend API URL!');
                 return;
             }
 
@@ -381,7 +432,7 @@
                 : /^https?:\/\/(www\.)?instagram\.com/.test(url);
 
             if (!isValidUrl) {
-                alert(`Please enter a valid ${selectedPlatform === 'youtube' ? 'YouTube' : 'Instagram'} URL!`);
+                showError(`Please enter a valid ${selectedPlatform === 'youtube' ? 'YouTube' : 'Instagram'} URL!`);
                 return;
             }
 
@@ -389,27 +440,39 @@
             downloadBtn.disabled = true;
             downloadBtn.textContent = 'Processing...';
             loading.style.display = 'block';
-            result.style.display = 'none';
 
-            // Simulate download process (replace with actual API call)
             try {
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                // Show success result
-                loading.style.display = 'none';
-                result.style.display = 'block';
-                
-                // Create a mock download link
-                const downloadLink = document.getElementById('downloadLink');
-                downloadLink.href = '#';
-                downloadLink.textContent = `Download ${selectedQuality} Video`;
-                downloadLink.onclick = (e) => {
-                    e.preventDefault();
-                    alert(`Note: This is a demo. In a real implementation, this would download the ${selectedQuality} video from ${selectedPlatform}.`);
-                };
+                const response = await fetch(`${apiUrl}/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        quality: selectedQuality,
+                        platform: selectedPlatform
+                    })
+                });
 
-            } catch (error) {
-                alert('Error processing video. Please try again.');
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Show success result
+                    loading.style.display = 'none';
+                    result.style.display = 'block';
+                    
+                    document.getElementById('videoTitle').textContent = data.title;
+                    const downloadLink = document.getElementById('downloadLink');
+                    downloadLink.href = `${apiUrl}${data.download_url}`;
+                    downloadLink.textContent = `Download ${selectedQuality} Video`;
+                    downloadLink.target = '_blank';
+                } else {
+                    throw new Error(data.error || 'Download failed');
+                }
+
+            } catch (err) {
+                console.error('Download error:', err);
+                showError(err.message || 'Failed to download video. Please check your backend URL and try again.');
             } finally {
                 downloadBtn.disabled = false;
                 downloadBtn.textContent = '🚀 Download Video';
@@ -417,11 +480,22 @@
             }
         });
 
+        function showError(message) {
+            const error = document.getElementById('error');
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            error.style.display = 'block';
+        }
+
         // Input validation
-        document.getElementById('videoUrl').addEventListener('input', (e) => {
+        document.getElementById('videoUrl').addEventListener('input', () => {
             const result = document.getElementById('result');
+            const error = document.getElementById('error');
             if (result.style.display === 'block') {
                 result.style.display = 'none';
+            }
+            if (error.style.display === 'block') {
+                error.style.display = 'none';
             }
         });
 
